@@ -45,7 +45,7 @@ public enum EosRecordTarget: Int {
     case magicSheet
     case setup
     
-    var filters: Set<String> {
+    internal var filters: Set<String> {
         switch self {
         case .patch: return eosPatchFilters
         case .cueList: return eosCueListFilters
@@ -67,7 +67,7 @@ public enum EosRecordTarget: Int {
         }
     }
     
-    var part: String {
+    internal var part: String {
         switch self {
         case .patch: return "patch"
         case .cueList: return "cuelist"
@@ -86,6 +86,28 @@ public enum EosRecordTarget: Int {
         case .pixelMap: return "pixmap"
         case .magicSheet: return "ms"
         case .setup: return "setup"
+        }
+    }
+    
+    public var title: String {
+        switch self {
+        case .patch: return "Patch"
+        case .cueList: return "Cue Lists"
+        case .cue: return "Cues"
+        case .group: return "Groups"
+        case .macro: return "Macros"
+        case .sub: return "Subs"
+        case .preset: return "Presets"
+        case .intensityPalette: return "Intensity Palettes"
+        case .focusPalette: return "Focus Palettes"
+        case .colorPalette: return "Color Palettes"
+        case .beamPalette: return "Beam Palettes"
+        case .curve: return "Curves"
+        case .effect: return "Effects"
+        case .snapshot: return "Snapshots"
+        case .pixelMap: return "Pixel Maps"
+        case .magicSheet: return "Magic Sheets"
+        case .setup: return "Setup"
         }
     }
     

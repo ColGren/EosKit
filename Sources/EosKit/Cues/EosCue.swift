@@ -27,45 +27,46 @@
 import Foundation
 import OSCKit
 
-public struct EosCue: EosTarget, Hashable {
+public struct EosCue: EosTarget, Hashable, Identifiable {
     
+    public var id: UUID { uuid }
     static internal let stepCount: Int = 4
     static internal let target: EosRecordTarget = .cue
-    let listNumber: Double          // This is only a Double to conform to EosTarget, in reality it's a UInt32.
-    let number: Double
-    let uuid: UUID
-    let label: String
-    let upTimeDuration: Int32       // milliseconds
-    let upTimeDelay: Int32          // milliseconds
-    let downTimeDuration: Int32     // milliseconds
-    let downTimeDelay: Int32        // milliseconds
-    let focusTimeDuration: Int32    // milliseconds
-    let focusTimeDelay: Int32       // milliseconds
-    let colorTimeDuration: Int32    // milliseconds
-    let colorTimeDelay: Int32       // milliseconds
-    let beamTimeDuration: Int32     // milliseconds
-    let beamTimeDelay: Int32        // milliseconds
-    let preheat: Bool               // TODO: Preheat levels?
-    let curve: Double?              // OSC Number
-    let rate: UInt32
-    let mark: String                // "m", "M" or ""
-    let block: String               // "b", "B" or ""
-    let assert: String              // "a", "A" or ""
-    let link: String                // OSC Number or String - String if links to a separate cue list.
-    let followTime: Int32           // milliseconds
-    let hangTime: Int32             // milliseconds
-    let allFade: Bool
-    let loop: Int32
-    let solo: Bool
-    let timecode: String
-    let partCount: UInt32           // This will always show the true part count.
-    let cueNotes: String
-    let sceneText: String
-    let sceneEnd: Bool
-    let effects: [Double]
-    let links: [Double]
-    let actions: String
-    let parts: [EosCuePart]         // Depending on the sync options this will either contain the parts or will be empty if only cues have been synced.
+    public let listNumber: Double          // This is only a Double to conform to EosTarget, in reality it's a UInt32.
+    public let number: Double
+    public let uuid: UUID
+    public let label: String
+    public let upTimeDuration: Int32       // milliseconds
+    public let upTimeDelay: Int32          // milliseconds
+    public let downTimeDuration: Int32     // milliseconds
+    public let downTimeDelay: Int32        // milliseconds
+    public let focusTimeDuration: Int32    // milliseconds
+    public let focusTimeDelay: Int32       // milliseconds
+    public let colorTimeDuration: Int32    // milliseconds
+    public let colorTimeDelay: Int32       // milliseconds
+    public let beamTimeDuration: Int32     // milliseconds
+    public let beamTimeDelay: Int32        // milliseconds
+    public let preheat: Bool               // TODO: Preheat levels?
+    public let curve: Double?              // OSC Number
+    public let rate: UInt32
+    public let mark: String                // "m", "M" or ""
+    public let block: String               // "b", "B" or ""
+    public let assert: String              // "a", "A" or ""
+    public let link: String                // OSC Number or String - String if links to a separate cue list.
+    public let followTime: Int32           // milliseconds
+    public let hangTime: Int32             // milliseconds
+    public let allFade: Bool
+    public let loop: Int32
+    public let solo: Bool
+    public let timecode: String
+    public let partCount: UInt32           // This will always show the true part count.
+    public let cueNotes: String
+    public let sceneText: String
+    public let sceneEnd: Bool
+    public let effects: [Double]
+    public let links: [Double]
+    public let actions: String
+    public let parts: [EosCuePart]         // Depending on the sync options this will either contain the parts or will be empty if only cues have been synced.
     
     init?(messages: [OSCMessage]) {
         self.init(messages: messages, parts: [])
@@ -95,7 +96,7 @@ public struct EosCue: EosTarget, Hashable {
               let beamTimeDelay = indexMessage.arguments[12] as? Int32,
               let preheat = indexMessage.arguments[13] as? Bool,
               let curve = EosOSCNumber.doubles(from:  indexMessage.arguments[14]).first,
-              let rate = indexMessage.arguments[15] as? NSNumber, let uRate = UInt32(exactly: rate),
+              let rate = indexMessage.arguments[15] as? Int32, let uRate = UInt32(exactly: rate),
               let mark = indexMessage.arguments[16] as? String,
               let block = indexMessage.arguments[17] as? String,
               let assert = indexMessage.arguments[18] as? String,
@@ -106,7 +107,7 @@ public struct EosCue: EosTarget, Hashable {
               let loop = indexMessage.arguments[23] as? Int32,
               let solo = indexMessage.arguments[24] as? Bool,
               let timecode = indexMessage.arguments[25] as? String,
-              let partCount = indexMessage.arguments[26] as? NSNumber, let uPartCount = UInt32(exactly: partCount),
+              let partCount = indexMessage.arguments[26] as? Int32, let uPartCount = UInt32(exactly: partCount),
               let cueNotes = indexMessage.arguments[27] as? String,
               let sceneText = indexMessage.arguments[28] as? String,
               let sceneEnd = indexMessage.arguments[29] as? Bool

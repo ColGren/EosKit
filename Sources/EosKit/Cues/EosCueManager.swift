@@ -58,12 +58,13 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     /// - `cue` holds the current cached cue index messages.
     /// - `count` is the number of parts the cue has.
     /// - `parts` holds the current cached arrays of part index messages.
-    private var messages: [String:(cue: [OSCMessage], count: UInt32, parts: [[OSCMessage]])] = [:]
+    private var messages: [String:(cue: [OSCMessage], count: Int32, parts: [[OSCMessage]])] = [:]
     
     init(console: EosConsole, targets: CurrentValueSubject<[Double: [EosCue]], Never>, progress: Progress? = nil) {
         self.console = console
         self.targets = targets
-        addressFilter.priority = .string
+        
+        addressFilter.invokeFirstOnly = true
     }
     
     internal func count(message: OSCMessage) {
@@ -75,10 +76,13 @@ internal final class EosCueManager: EosTargetManagerProtocol {
         for index in 0..<count {
             switch messageType {
             case .list:
+                addressFilter.priority = .none
                 console.send(OSCMessage.get(target: EosRecordTarget.cueList, withIndex: index))
             case .cue:
+                addressFilter.priority = .string
                 console.send(OSCMessage.getCueNoPartsIn(list: number, atIndex: index))
             case .part:
+                addressFilter.priority = .wildcard
                 console.send(OSCMessage.getPartFor(cue: cueNumber, inList: number, atIndex: index))
             }
         }
@@ -105,8 +109,8 @@ internal final class EosCueManager: EosTargetManagerProtocol {
                     targets.value[cueListNumber]?.remove(at: firstIndex)
                 }
             } else {
-                if message.addressPattern.parts.count == 8, let partCount = message.arguments[26] as? NSNumber, let uPartCount = UInt32(exactly: partCount) {
-                    messages[key] = (cue: [message], count: uPartCount, parts: [])
+                if message.addressPattern.parts.count == 8, let partCount = message.arguments[26] as? Int32 {
+                    messages[key] = (cue: [message], count: partCount, parts: [])
                 } else if let _ = messages[key] {
                     messages[key]?.cue.append(message)
                 }
@@ -119,11 +123,12 @@ internal final class EosCueManager: EosTargetManagerProtocol {
                             } else {
                                 if let firstIndex = list.firstIndex(where: { $0.uuid == cue.uuid }) {
                                     targets.value[cueListNumber]?[firstIndex] = cue
+                                    
                                 } else {
                                     let index = list.insertionIndex(for: { $0.number < cue.number })
                                     targets.value[cueListNumber]?.insert(cue, at: index)
+                                    
                                 }
-
                             }
                             messages[key] = nil
                         }
@@ -144,6 +149,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
             guard let targetMessages = messages[key] else { return }
             if targetMessages.count == targetMessages.parts.count && targetMessages.parts.allSatisfy( { $0.count == EosCuePart.stepCount }) {
                 let parts = targetMessages.parts.compactMap { EosCuePart(messages: $0) }
+                
                 guard let cue = EosCue(messages: targetMessages.cue, parts: parts),
                       let list = targets.value[cueListNumber]
                 else { return }

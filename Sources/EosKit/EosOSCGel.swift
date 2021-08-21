@@ -28,7 +28,13 @@ import Foundation
 
 public enum EosOSCGel: CaseIterable {
     public static var allCases: [EosOSCGel] {
-        return [.apollo(gel: 0), .gam(gel: 0), .lee(gel: 0), .rosco(gel: 0), .roscoSuperGel(gel: 0), .roscoEColor(gel: 0), .tokyoBSPolyColor(gel: 0)]
+        return [.apollo(gel: 0),
+                .gam(gel: 0),
+                .lee(gel: 0),
+                .rosco(gel: 0),
+                .roscoSuperGel(gel: 0),
+                .roscoEColor(gel: 0),
+                .tokyoBSPolyColor(gel: 0)]
     }
     
     case apollo(gel: UInt32)

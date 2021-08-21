@@ -572,7 +572,8 @@ extension EosConsole: OSCTcpClientDelegate {
 extension EosConsole {
 
     public override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
-        if let handler = progressHandler, context == &observationContext && keyPath == "fractionCompleted" {
+        if context == &observationContext && keyPath == "fractionCompleted" {
+            guard let handler = progressHandler else { return }
             let progress = (object as! Progress)
             handler(progress.fractionCompleted, progress.localizedDescription!, progress.localizedAdditionalDescription!)
             if let delegate = delegate, progress.isFinished {

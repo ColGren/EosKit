@@ -29,7 +29,7 @@ import Combine
 
 internal protocol EosTargetManagerProtocol {
     
-    var addressSpace: OSCAddressSpace { get }
+    var addressFilter: OSCAddressFilter { get }
     func synchronize()
     func take(message: OSCMessage)
 }
@@ -37,7 +37,7 @@ internal protocol EosTargetManagerProtocol {
 extension EosTargetManagerProtocol {
     
     func take(message: OSCMessage) {
-        addressSpace.invoke(with: message)
+        _ = addressFilter.invoke(with: message)
     }
     
 }

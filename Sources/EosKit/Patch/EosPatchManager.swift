@@ -31,7 +31,7 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
     
     private let console: EosConsole
     private let targets: CurrentValueSubject<[EosChannel], Never>
-    internal var addressSpace = OSCAddressSpace()
+    internal var addressFilter = OSCAddressFilter()
 
     private var managerProgress: Progress?
     private var progress: Progress?
@@ -46,6 +46,7 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
         self.console = console
         self.targets = targets
         self.managerProgress = progress
+        addressFilter.priority = .string
     }
     
     internal func count(message: OSCMessage) -> () {
@@ -100,28 +101,28 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
     }
     
     func synchronize() {
-        if addressSpace.methods.isEmpty {
-            var methods: Set<OSCMethod> = []
+        if addressFilter.methods.isEmpty {
+            var methods: Set<OSCFilterMethod> = []
             EosRecordTarget.patch.filters.forEach {
-                let address = try! OSCAddress($0)
+                let address = try! OSCFilterAddress($0)
                 if $0.hasSuffix("count") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.count(message: message)
                     }))
                 } else if $0.hasPrefix("/notify") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.notify(message: message)
                     }))
                 } else {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.index(message: message)
                     }))
                 }
             }
-            addressSpace.methods = methods
+            addressFilter.methods = methods
         }
         messages.removeAll()
         targets.value.removeAll()

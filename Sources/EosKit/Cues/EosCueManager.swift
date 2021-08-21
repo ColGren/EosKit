@@ -50,7 +50,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     
     private let console: EosConsole
     private let targets: CurrentValueSubject<[Double: [EosCue]], Never>
-    internal var addressSpace = OSCAddressSpace()
+    internal var addressFilter = OSCAddressFilter()
     
     /// A dictionary of `OSCMessage`'s to build an EosCue with its component `EosCuePart`'s.
     ///
@@ -63,6 +63,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     init(console: EosConsole, targets: CurrentValueSubject<[Double: [EosCue]], Never>, progress: Progress? = nil) {
         self.console = console
         self.targets = targets
+        addressFilter.priority = .string
     }
     
     internal func count(message: OSCMessage) {
@@ -181,28 +182,28 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     
     // MARK:- Sync
     func synchronize() {
-        if addressSpace.methods.isEmpty {
-            var methods: Set<OSCMethod> = []
+        if addressFilter.methods.isEmpty {
+            var methods: Set<OSCFilterMethod> = []
             EosRecordTarget.cue.filters.forEach {
-                let address = try! OSCAddress($0)
+                let address = try! OSCFilterAddress($0)
                 if $0.hasSuffix("count") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.count(message: message)
                     }))
                 } else if $0.hasPrefix("/notify") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.notify(message: message)
                     }))
                 } else {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.index(message: message)
                     }))
                 }
             }
-            addressSpace.methods = methods
+            addressFilter.methods = methods
         }
         console.send(OSCMessage.getCount(of: EosRecordTarget.cueList))
     }

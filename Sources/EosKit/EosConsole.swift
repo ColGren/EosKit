@@ -283,8 +283,12 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
             filters = filters.union(filterChanges.add)
             filters = filters.subtracting(filterChanges.remove)
             do {
-                let addMessage = try OSCMessage(with: eosFiltersAdd, arguments: Array(filterChanges.add))
-                let removeMessage = try OSCMessage(with: eosFiltersRemove, arguments: Array(filterChanges.remove))
+                let addMessage = try OSCMessage(with: eosFiltersAdd,
+                                                arguments: Array(filterChanges.add
+                                                                    .map { $0.replacingOccurrences(of: "#", with: "*") }))
+                let removeMessage = try OSCMessage(with: eosFiltersRemove,
+                                                   arguments: Array(filterChanges.remove
+                                                                        .map { $0.replacingOccurrences(of: "#", with: "*") }))
                 try client.send(OSCBundle([addMessage, removeMessage]))
             } catch {
                 print(error.localizedDescription)
@@ -292,7 +296,9 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
         case (false, true):
             filters = filters.union(filterChanges.add)
             do {
-                let message = try OSCMessage(with: eosFiltersAdd, arguments: Array(filterChanges.add))
+                let message = try OSCMessage(with: eosFiltersAdd,
+                                             arguments: Array(filterChanges.add
+                                                                .map { $0.replacingOccurrences(of: "#", with: "*") }))
                 try client.send(message)
             } catch {
                 print(error.localizedDescription)
@@ -300,7 +306,9 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
         case (true, false):
             filters = filters.subtracting(filterChanges.remove)
             do {
-                let message = try OSCMessage(with: eosFiltersRemove, arguments: Array(filterChanges.remove))
+                let message = try OSCMessage(with: eosFiltersRemove,
+                                             arguments: Array(filterChanges.remove
+                                                                .map { $0.replacingOccurrences(of: "#", with: "*") } ))
                 try client.send(message)
             } catch {
                 print(error.localizedDescription)

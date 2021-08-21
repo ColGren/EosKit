@@ -31,7 +31,7 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
     
     private let targets: CurrentValueSubject<[T], Never>
     private let console: EosConsole
-    internal var addressSpace = OSCAddressSpace()
+    internal var addressFilter = OSCAddressFilter()
     
     private var managerProgress: Progress?
     private var progress: Progress?
@@ -41,6 +41,7 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
         self.console = console
         self.targets = targets
         self.managerProgress = progress
+        addressFilter.priority = .string
     }
     
     private func count(message: OSCMessage) {
@@ -114,28 +115,28 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
     }
     
     func synchronize() {
-        if addressSpace.methods.isEmpty {
-            var methods: Set<OSCMethod> = []
+        if addressFilter.methods.isEmpty {
+            var methods: Set<OSCFilterMethod> = []
             T.target.filters.forEach {
-                let address = try! OSCAddress($0)
+                let address = try! OSCFilterAddress($0)
                 if $0.hasSuffix("count") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.count(message: message)
                     }))
                 } else if $0.hasPrefix("/notify") {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.notify(message: message)
                     }))
                 } else {
-                    methods.insert(OSCMethod(with: address,
-                                             invokedAction: { message, _ in
+                    methods.insert(OSCFilterMethod(with: address,
+                                                   invokedAction: { message, _ in
                         self.index(message: message)
                     }))
                 }
             }
-            addressSpace.methods = methods
+            addressFilter.methods = methods
         }
         console.send(OSCMessage.getCount(of: T.target))
     }

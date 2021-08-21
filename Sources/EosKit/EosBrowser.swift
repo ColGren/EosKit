@@ -30,8 +30,8 @@ import NetUtils
 
 public final class EosBrowser: EosConsoleDiscoverer {
     
-    private lazy var request = OSCMessage(with: eosDiscoveryRequest, arguments: [port, name])
-    private var discoveringInterfaces: [(server: OSCServer, client: OSCClient)] = []
+    private lazy var request = try! OSCMessage(with: eosDiscoveryRequest, arguments: [Int32(port), name])
+    private var discoveringInterfaces: [(server: OSCUdpServer, client: OSCUdpClient)] = []
     private var consoles: [String: [(console: EosConsole, heartbeat: Timer)]] = [:]
     private var discoveryTimer: Timer?
     public let port: UInt16
@@ -72,7 +72,6 @@ public final class EosBrowser: EosConsoleDiscoverer {
     deinit {
         stop()
         discoveringInterfaces.forEach({
-            $0.client.disconnect()
             $0.client.delegate = nil
             $0.server.stopListening()
             $0.server.delegate = nil
@@ -88,10 +87,10 @@ public final class EosBrowser: EosConsoleDiscoverer {
             $0.server.delegate = self
             do {
                 try $0.server.startListening()
-            } catch let error as NSError {
-                print(error)
+                try $0.client.send(request)
+            } catch {
+                print(error.localizedDescription)
             }
-            $0.client.send(packet: request)
         })
         refresh(every: 3)
     }
@@ -108,12 +107,16 @@ public final class EosBrowser: EosConsoleDiscoverer {
     
     @objc func requestConsole(timer: Timer) {
         guard let rTimer = discoveryTimer, timer == rTimer, rTimer.isValid else { return }
-        discoveringInterfaces.forEach({ $0.client.send(packet: request) })
+        discoveringInterfaces.forEach({ try? $0.client.send(request) })
     }
     
     private func refresh(every timeInterval: TimeInterval) {
         if discoveryTimer == nil {
-            discoveryTimer = Timer(timeInterval: timeInterval, target: self, selector: #selector(requestConsole(timer:)), userInfo: nil, repeats: true)
+            discoveryTimer = Timer(timeInterval: timeInterval,
+                                   target: self,
+                                   selector: #selector(requestConsole(timer:)),
+                                   userInfo: nil,
+                                   repeats: true)
             discoveryTimer!.tolerance = timeInterval * 0.1
             RunLoop.current.add(discoveryTimer!, forMode: .common)
         }
@@ -132,26 +135,23 @@ public final class EosBrowser: EosConsoleDiscoverer {
         }
     }
     
-    /// Creates an `OSCClient` configured to broadcast discovery request messages on a given interface.
+    /// Creates an `OSCUdpClient` configured to broadcast discovery request messages on a given interface.
     ///
     /// - Parameter interface:  An Interface the OSC Client will broadcast on.
-    private func client(with interface: Interface) -> OSCClient {
-        let client = OSCClient()
-        client.port = 3034
-        client.interface = interface.name
-        client.host = interface.broadcastAddress
-        return client
+    private func client(with interface: Interface) -> OSCUdpClient {
+        return OSCUdpClient(configuration: OSCUdpClientConfiguration(interface: interface.name,
+                                                                     host: interface.broadcastAddress ?? "",
+                                                                     port: 3034))
     }
     
-    /// Creates an `OSCServer` configured to receive broadcast discovery reply messages on a given interface and port.
+    /// Creates an `OSCUdpServer` configured to receive broadcast discovery reply messages on a given interface and port.
     ///
     /// - Parameter interface:  An Interface the OSC Server will listen on.
     /// - Parameter port:       The port the server will bind to.
-    private func server(with interface: Interface, port: UInt16 = 3035) -> OSCServer {
-        let server = OSCServer()
-        server.port = port
-        server.interface = interface.name
-        server.reusePort = true
+    private func server(with interface: Interface, port: UInt16 = 3035) -> OSCUdpServer {
+        let server = OSCUdpServer(configuration: OSCUdpServerConfiguration(interface: interface.name,
+                                                                           port: port))
+        try? server.enableReusePort(true)
         return server
     }
     
@@ -178,7 +178,8 @@ public final class EosBrowser: EosConsoleDiscoverer {
         timer.invalidate()
         let interface = userInfo["interface", default: ""]
         let host = userInfo["host", default: ""]
-        guard var foundConsoles = consoles[interface], let index = foundConsoles.firstIndex(where: { $0.console.host == host }) else { return }
+        guard var foundConsoles = consoles[interface],
+              let index = foundConsoles.firstIndex(where: { $0.console.host == host }) else { return }
         let console = foundConsoles[index].console
         foundConsoles.remove(at: index)
         consoles[interface] = foundConsoles
@@ -187,38 +188,57 @@ public final class EosBrowser: EosConsoleDiscoverer {
         
 }
 
-extension EosBrowser: OSCPacketDestination {
+extension EosBrowser: OSCUdpServerDelegate {
     
-    public func take(message: OSCMessage) {
-        guard message.addressPattern == eosDiscoveryReply, let interface = message.replySocket?.interface, let host = message.replySocket?.host, message.arguments.count >= 2 else { return }
-        if var foundConsoles = consoles[interface], let index = foundConsoles.firstIndex(where: { $0.console.host == host }) {
+    public func server(_ server: OSCUdpServer, didReceivePacket packet: OSCPacket, fromHost host: String, port: UInt16) {
+        guard let message = packet as? OSCMessage,
+              message.addressPattern.fullPath == eosDiscoveryReply,
+              message.arguments.count >= 2 else { return }
+        if var foundConsoles = consoles[server.interface ?? ""],
+           let index = foundConsoles.firstIndex(where: { $0.console.host == host }) {
             // MARK: Console Still Online
             foundConsoles[index].heartbeat.invalidate()
-            let heartbeat = Timer(timeInterval: 5, target: self, selector: #selector(heartbeatTimeout(timer:)), userInfo: ["interface": interface, "host" : host], repeats: false)
+            let heartbeat = Timer(timeInterval: 5,
+                                  target: self,
+                                  selector: #selector(heartbeatTimeout(timer:)),
+                                  userInfo: ["interface": server.interface ?? "", "host" : host],
+                                  repeats: false)
             foundConsoles[index].heartbeat = heartbeat
-            consoles[interface] = foundConsoles
+            consoles[server.interface ?? ""] = foundConsoles
             RunLoop.current.add(heartbeat, forMode: .common)
         } else {
             // MARK: New Console Found
             // Get the receive port from the message. This will most likely be 3032.
-            guard let consolePort = message.arguments[0] as? NSNumber, let port = UInt16(exactly: consolePort) else { return }
+            guard let consolePort = message.arguments[0] as? Int32,
+                  let port = UInt16(exactly: consolePort) else { return }
             // Get the name and console type from the message.
             guard let nameAndType = nameAndType(from: message) else { return }
-            let console = EosConsole(name: nameAndType.name, type: nameAndType.type, interface: interface, host: host, port: port)
-            let heartbeat = Timer(timeInterval: 5, target: self, selector: #selector(heartbeatTimeout(timer:)), userInfo: ["interface": interface, "host" : host], repeats: false)
+            let console = EosConsole(name: nameAndType.name,
+                                     type: nameAndType.type,
+                                     interface: server.interface ?? "",
+                                     host: host,
+                                     port: port)
+            let heartbeat = Timer(timeInterval: 5,
+                                  target: self,
+                                  selector: #selector(heartbeatTimeout(timer:)),
+                                  userInfo: ["interface": server.interface ?? "", "host" : host],
+                                  repeats: false)
             RunLoop.current.add(heartbeat, forMode: .common)
-            if var interfacesConsoles = consoles[interface] {
+            if var interfacesConsoles = consoles[server.interface ?? ""] {
                 interfacesConsoles.append((console: console, heartbeat: heartbeat))
-                consoles[interface] = interfacesConsoles
+                consoles[server.interface ?? ""] = interfacesConsoles
             } else {
-                consoles[interface] = [(console: console, heartbeat: heartbeat)]
+                consoles[server.interface ?? ""] = [(console: console, heartbeat: heartbeat)]
             }
             delegate?.discoverer(self, didFindConsole: console)
         }
     }
     
-    public func take(bundle: OSCBundle) {
-        // An eos family console doesn't send any OSC Bundles.
+    public func server(_ server: OSCUdpServer, socketDidCloseWithError error: Error?) {
+        return
+    }
+    
+    public func server(_ server: OSCUdpServer, didReadData data: Data, with error: Error) {
         return
     }
     

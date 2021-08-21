@@ -47,17 +47,17 @@ public struct EosSub: EosTarget, Hashable {
     
     internal init?(messages: [OSCMessage]) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.contains("fx") == false }),
-              let fxMessage = messages.first(where: { $0.addressPattern.contains("fx") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.contains("fx") == false }),
+              let fxMessage = messages.first(where: { $0.addressPattern.fullPath.contains("fx") == true }),
               let number = indexMessage.number(), let double = Double(number),
               let uuid = indexMessage.uuid(),
               let label = indexMessage.arguments[2] as? String,
               let mode = indexMessage.arguments[3] as? String,
               let faderMode = indexMessage.arguments[4] as? String,
-              let htp = indexMessage.arguments[5] as? OSCArgument,
-              let exclusive = indexMessage.arguments[6] as? OSCArgument,
-              let background = indexMessage.arguments[7] as? OSCArgument,
-              let restore = indexMessage.arguments[8] as? OSCArgument
+              let htp = indexMessage.arguments[5] as? Bool,
+              let exclusive = indexMessage.arguments[6] as? Bool,
+              let background = indexMessage.arguments[7] as? Bool,
+              let restore = indexMessage.arguments[8] as? Bool
 //              let priority = indexMessage.arguments[9] as? String,
 //              let upTime = indexMessage.arguments[10] as? Int32,
 //              let dwellTime = indexMessage.arguments[11] as? Int32,
@@ -68,10 +68,10 @@ public struct EosSub: EosTarget, Hashable {
         self.label = label
         self.mode = mode
         self.faderMode = faderMode
-        self.htp = htp == .oscTrue
-        self.exclusive = exclusive == .oscTrue
-        self.background = background  == .oscTrue
-        self.restore = restore == .oscTrue
+        self.htp = htp
+        self.exclusive = exclusive
+        self.background = background
+        self.restore = restore
 //        self.priority = priority
 //        self.upTime = upTime
 //        self.dwellTime = dwellTime

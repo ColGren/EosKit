@@ -73,12 +73,12 @@ public struct EosCue: EosTarget, Hashable {
     
     init?(messages: [OSCMessage], parts: [EosCuePart]) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.contains("fx") == false &&
-                                                         $0.addressPattern.contains("links") == false &&
-                                                         $0.addressPattern.contains("actions") == false }),
-              let fxMessage = messages.first(where: { $0.addressPattern.contains("fx") == true }),
-              let linksMessage = messages.first(where: { $0.addressPattern.contains("links") == true }),
-              let actionsMessage = messages.first(where: { $0.addressPattern.contains("actions") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.contains("fx") == false &&
+                                                    $0.addressPattern.fullPath.contains("links") == false &&
+                                                    $0.addressPattern.fullPath.contains("actions") == false }),
+              let fxMessage = messages.first(where: { $0.addressPattern.fullPath.contains("fx") == true }),
+              let linksMessage = messages.first(where: { $0.addressPattern.fullPath.contains("links") == true }),
+              let actionsMessage = messages.first(where: { $0.addressPattern.fullPath.contains("actions") == true }),
               let listNumber = indexMessage.number(), let dListNumber = Double(listNumber),
               let number = indexMessage.subNumber(), let double = Double(number),
               let uuid = indexMessage.uuid(),
@@ -93,7 +93,7 @@ public struct EosCue: EosTarget, Hashable {
               let colorTimeDelay = indexMessage.arguments[10] as? Int32,
               let beamTimeDuration = indexMessage.arguments[11] as? Int32,
               let beamTimeDelay = indexMessage.arguments[12] as? Int32,
-              let preheat = indexMessage.arguments[13] as? OSCArgument,
+              let preheat = indexMessage.arguments[13] as? Bool,
               let curve = EosOSCNumber.doubles(from:  indexMessage.arguments[14]).first,
               let rate = indexMessage.arguments[15] as? NSNumber, let uRate = UInt32(exactly: rate),
               let mark = indexMessage.arguments[16] as? String,
@@ -102,14 +102,14 @@ public struct EosCue: EosTarget, Hashable {
               let link = EosCue.link(from: indexMessage.arguments[19]),
               let followTime = indexMessage.arguments[20] as? Int32,
               let hangTime = indexMessage.arguments[21] as? Int32,
-              let allFade = indexMessage.arguments[22] as? OSCArgument,
+              let allFade = indexMessage.arguments[22] as? Bool,
               let loop = indexMessage.arguments[23] as? Int32,
-              let solo = indexMessage.arguments[24] as? OSCArgument,
+              let solo = indexMessage.arguments[24] as? Bool,
               let timecode = indexMessage.arguments[25] as? String,
               let partCount = indexMessage.arguments[26] as? NSNumber, let uPartCount = UInt32(exactly: partCount),
               let cueNotes = indexMessage.arguments[27] as? String,
               let sceneText = indexMessage.arguments[28] as? String,
-              let sceneEnd = indexMessage.arguments[29] as? OSCArgument
+              let sceneEnd = indexMessage.arguments[29] as? Bool
         else { return nil }
         self.listNumber = dListNumber
         self.number = double
@@ -125,7 +125,7 @@ public struct EosCue: EosTarget, Hashable {
         self.colorTimeDelay = colorTimeDelay
         self.beamTimeDuration = beamTimeDuration
         self.beamTimeDelay = beamTimeDelay
-        self.preheat = preheat == .oscTrue
+        self.preheat = preheat
         self.curve = curve
         self.rate = uRate
         self.mark = mark
@@ -134,14 +134,14 @@ public struct EosCue: EosTarget, Hashable {
         self.link = link
         self.followTime = followTime
         self.hangTime = hangTime
-        self.allFade = allFade == .oscTrue
+        self.allFade = allFade
         self.loop = loop
-        self.solo = solo == .oscTrue
+        self.solo = solo
         self.timecode = timecode
         self.partCount = uPartCount
         self.cueNotes = cueNotes
         self.sceneText = sceneText
-        self.sceneEnd = sceneEnd == .oscTrue
+        self.sceneEnd = sceneEnd
         
         var effectsList: [Double] = []
         for argument in fxMessage.arguments[2...] {

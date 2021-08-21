@@ -37,8 +37,7 @@ internal protocol EosTargetManagerProtocol {
 extension EosTargetManagerProtocol {
     
     func take(message: OSCMessage) {
-//        print(OSCAnnotation.annotation(for: message, with: .spaces, andType: true))
-        let _ = addressSpace.complete(with: message, priority: .string)
+        addressSpace.invoke(with: message)
     }
     
 }

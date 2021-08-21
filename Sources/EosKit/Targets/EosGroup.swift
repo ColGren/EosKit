@@ -44,8 +44,8 @@ public struct EosGroup: EosTarget, Hashable {
     
     internal init?(messages: [OSCMessage]) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.contains("channels") == false }),
-              let channelsMessage = messages.first(where: { $0.addressPattern.contains("channels") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.contains("channels") == false }),
+              let channelsMessage = messages.first(where: { $0.addressPattern.fullPath.contains("channels") == true }),
               let number = indexMessage.number(), let double = Double(number),
               let uuid = indexMessage.uuid(),
               let label = indexMessage.arguments[2] as? String

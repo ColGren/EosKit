@@ -55,8 +55,8 @@ public struct EosChannelPart: Hashable {
     
     init?(messages: [OSCMessage]) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.hasSuffix("notes") == false }),
-              let notesMessage = messages.first(where: { $0.addressPattern.hasSuffix("notes") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.hasSuffix("notes") == false }),
+              let notesMessage = messages.first(where: { $0.addressPattern.fullPath.hasSuffix("notes") == true }),
               let channelNumber = indexMessage.number(), let uChannelNumber = UInt32(channelNumber),
               let partNumber = indexMessage.subNumber(), let uPartNumber = UInt32(partNumber),
               let uuid = indexMessage.uuid(),

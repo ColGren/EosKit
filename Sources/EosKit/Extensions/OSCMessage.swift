@@ -29,15 +29,15 @@ import OSCKit
 
 extension OSCMessage {
     
-    internal var isFromEos: Bool { get { self.addressPattern.hasPrefix(eosOutPrefix) }}
+    internal var isFromEos: Bool { get { self.addressPattern.fullPath.hasPrefix(eosOutPrefix) }}
     
     internal func addressWithoutEosOut() -> String {
-        let startIndex = self.addressPattern.index(self.addressPattern.startIndex, offsetBy: eosOutPrefix.count)
-        return String(self.addressPattern[startIndex...])
+        let startIndex = self.addressPattern.fullPath.index(self.addressPattern.fullPath.startIndex, offsetBy: eosOutPrefix.count)
+        return String(self.addressPattern.fullPath[startIndex...])
     }
     
     internal func isHeartbeat(with uuid: UUID) -> Bool {
-        guard self.addressPattern == eosPingRequest,
+        guard self.addressPattern.fullPath == eosPingRequest,
               self.arguments.count == 2,
               let argument1 = self.arguments[0] as? String,
               let argument2 = self.arguments[1] as? String else { return false }
@@ -51,29 +51,29 @@ extension OSCMessage {
     }
     
     internal func number() -> String? {
-        guard self.addressParts.count >= 3 else { return nil }
-        return self.addressParts[2]
+        guard self.addressPattern.parts.count >= 3 else { return nil }
+        return self.addressPattern.parts[2]
     }
     
     internal func subNumber() -> String? {
-        guard self.addressParts.count >= 4 else { return nil }
-        return self.addressParts[3]
+        guard self.addressPattern.parts.count >= 4 else { return nil }
+        return self.addressPattern.parts[3]
     }
     
     static internal func getCount(of target: EosRecordTarget) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/\(target.part)/count")
+        return try! OSCMessage(with: "/eos/get/\(target.part)/count")
     }
     
     static internal func get(target: EosRecordTarget, withIndex index: Int32) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/\(target.part)/index/\(index)")
+        return try! OSCMessage(with: "/eos/get/\(target.part)/index/\(index)")
     }
     
     static internal func get(target: EosRecordTarget, withUUID uuid: UUID) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/\(target.part)/uid/\(uuid)")
+        return try! OSCMessage(with: "/eos/get/\(target.part)/uid/\(uuid)")
     }
     
     static internal func get(target: EosRecordTarget, withNumber number: String) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/\(target.part)/\(number)")
+        return try! OSCMessage(with: "/eos/get/\(target.part)/\(number)")
     }
 
 }

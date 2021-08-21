@@ -81,7 +81,7 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     private(set) public var filters: Set<String> = []
     
     private var completionHandlers: [String : EosKitCompletionHandler] = [:]
-    private let client = OSCClient()
+    private let client: OSCTcpClient
     public var id: UUID { uuid }
     public let uuid = UUID()
     private var heartbeats = -1 // Not running
@@ -91,7 +91,7 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     public let name: String
     public let type: EosConsoleType
     private(set) var interface: String { get { client.interface ?? "" } set { client.interface = newValue } }
-    private(set) var host: String { get { client.host ?? "localhost" } set { client.host = newValue } }
+    private(set) var host: String { get { client.host } set { client.host = newValue } }
     private(set) var port: UInt16 { get { client.port } set { client.port = newValue } }
     
     /// The current state of the TCP connection.
@@ -143,24 +143,28 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     public init(name: String, type: EosConsoleType = .unknown, interface: String = "", host: String, port: UInt16 = 3032) {
         self.name = name
         self.type = type
-        client.host = host
-        client.port = port
-        client.useTCP = true
-        client.streamFraming = .SLIP
+        client = OSCTcpClient(configuration: OSCTcpClientConfiguration(interface: interface,
+                                                                       host: host,
+                                                                       port: port,
+                                                                       streamFraming: .SLIP))
         print("Initialised with \(name) : \(type.rawValue) : \(interface) : \(host) : \(port)")
     }
     
     deinit {
         print("Deinitialised with \(name) : \(type.rawValue) : \(interface) : \(host) : \(port)")
         if progress.observationInfo != nil {
-            progress.removeObserver(self, forKeyPath: "fractionCompleted", context: &observationContext)
+            progress.removeObserver(self,
+                                    forKeyPath: "fractionCompleted",
+                                    context: &observationContext)
         }
 
     }
     
     public func connect() -> Bool {
         client.delegate = self
-        progress.addObserver(self, forKeyPath: "fractionCompleted", options: [], context: &observationContext)
+        progress.addObserver(self, forKeyPath: "fractionCompleted",
+                             options: [],
+                             context: &observationContext)
         do {
             try client.connect()
             return true
@@ -172,7 +176,9 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     public func disconnect() {
         client.disconnect()
         client.delegate = nil
-        progress.removeObserver(self, forKeyPath: "fractionCompleted", context: &observationContext)
+        progress.removeObserver(self,
+                                forKeyPath: "fractionCompleted",
+                                context: &observationContext)
     }
     
     // MARK:- Heartbeat
@@ -187,7 +193,9 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     }
     
     private func stopHeartbeat() {
-        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(sendHeartbeat), object: nil)
+        NSObject.cancelPreviousPerformRequests(withTarget: self,
+                                               selector: #selector(sendHeartbeat),
+                                               object: nil)
         clearHeartbeatTimeout()
         heartbeats = -1
     }
@@ -199,8 +207,10 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     }
     
     @objc func sendHeartbeat() {
-        sendMessage(with: eosPingRequest, arguments:  [eosHeartbeatString, uuid.uuidString], completionHandler: { [weak self] message in
-            
+        sendMessage(with: eosPingRequest,
+                    arguments: [eosHeartbeatString, uuid.uuidString],
+                    completionHandler: { [weak self] message in
+        
             guard let strongSelf = self, strongSelf.heartbeats > -1 else { return }
             strongSelf.clearHeartbeatTimeout()
             
@@ -210,21 +220,29 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
                 strongSelf.state = .responsive
                 if strongSelf.systemFiltersSent == false {
                     let systemFilters = eosSystemFilters.map { eosOutPrefix + $0 }
-                    strongSelf.client.send(packet: OSCMessage(with: eosFiltersAdd, arguments: systemFilters))
+                    try? strongSelf.client.send(try! OSCMessage(with: eosFiltersAdd, arguments: systemFilters))
                     strongSelf.filters = strongSelf.filters.union(systemFilters)
                     strongSelf.systemFiltersSent = true
                 }
             }
             
-            strongSelf.perform(#selector(strongSelf.sendHeartbeat), with: nil, afterDelay: EosConsoleHeartbeatInterval)
+            strongSelf.perform(#selector(strongSelf.sendHeartbeat),
+                               with: nil,
+                               afterDelay: EosConsoleHeartbeatInterval)
         })
         
-        heartbeatTimer = Timer(timeInterval: EosConsoleHeartbeatFailureInterval, target: self, selector: #selector(heartbeatTimeout(timer:)), userInfo: nil, repeats: false)
+        heartbeatTimer = Timer(timeInterval: EosConsoleHeartbeatFailureInterval,
+                               target: self,
+                               selector: #selector(heartbeatTimeout(timer:)),
+                               userInfo: nil,
+                               repeats: false)
         RunLoop.current.add(heartbeatTimer!, forMode: .common)
     }
     
     @objc func heartbeatTimeout(timer: Timer) {
-        guard timer.isValid, heartbeats != -1, state != .disconnected || state != .unknown else { return }
+        guard timer.isValid,
+              heartbeats != -1,
+              state != .disconnected || state != .unknown else { return }
         if state != .unresponsive {
             state = .unresponsive
         }
@@ -236,7 +254,11 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
         heartbeats += 1
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
-        heartbeatTimer = Timer(timeInterval: EosConsoleHeartbeatFailureInterval, target: self, selector: #selector(sendHeartbeat), userInfo: nil, repeats: false)
+        heartbeatTimer = Timer(timeInterval: EosConsoleHeartbeatFailureInterval,
+                               target: self,
+                               selector: #selector(sendHeartbeat),
+                               userInfo: nil,
+                               repeats: false)
         RunLoop.current.add(heartbeatTimer!, forMode: .common)
     }
     
@@ -260,17 +282,29 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
         case (false, false):
             filters = filters.union(filterChanges.add)
             filters = filters.subtracting(filterChanges.remove)
-            client.send(packet: OSCBundle(with: [OSCMessage(with: eosFiltersAdd,
-                                                            arguments: Array(filterChanges.add)),
-                                                 OSCMessage(with: eosFiltersRemove,
-                                                            arguments: Array(filterChanges.remove))
-            ]))
+            do {
+                let addMessage = try OSCMessage(with: eosFiltersAdd, arguments: Array(filterChanges.add))
+                let removeMessage = try OSCMessage(with: eosFiltersRemove, arguments: Array(filterChanges.remove))
+                try client.send(OSCBundle([addMessage, removeMessage]))
+            } catch {
+                print(error.localizedDescription)
+            }
         case (false, true):
             filters = filters.union(filterChanges.add)
-            client.send(packet: OSCMessage(with: eosFiltersAdd, arguments: Array(filterChanges.add)))
+            do {
+                let message = try OSCMessage(with: eosFiltersAdd, arguments: Array(filterChanges.add))
+                try client.send(message)
+            } catch {
+                print(error.localizedDescription)
+            }
         case (true, false):
             filters = filters.subtracting(filterChanges.remove)
-            client.send(packet: OSCMessage(with: eosFiltersRemove, arguments: Array(filterChanges.remove)))
+            do {
+                let message = try OSCMessage(with: eosFiltersRemove, arguments: Array(filterChanges.remove))
+                try client.send(message)
+            } catch {
+                print(error.localizedDescription)
+            }
         }
     }
     
@@ -287,82 +321,114 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
             switch $0 {
             case .patch:
                 let managerProgress = Progress(totalUnitCount: 1)
-                patchManager = EosPatchManager(console: self, targets: patch, progress: managerProgress)
+                patchManager = EosPatchManager(console: self,
+                                               targets: patch,
+                                               progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 patchManager?.synchronize()
             case .cueList:
                 let managerProgress = Progress(totalUnitCount: 1)
-                cueListManager = EosTargetManager(console: self, targets: cueLists, progress: managerProgress)
+                cueListManager = EosTargetManager(console: self,
+                                                  targets: cueLists,
+                                                  progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 cueListManager?.synchronize()
             case .cue:
                 let managerProgress = Progress(totalUnitCount: 1)
-                cueManager = EosCueManager(console: self, targets: cues, progress: managerProgress)
+                cueManager = EosCueManager(console: self,
+                                           targets: cues,
+                                           progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 cueManager?.synchronize()
             case .group:
                 let managerProgress = Progress(totalUnitCount: 1)
-                groupManager = EosTargetManager(console: self, targets: groups, progress: managerProgress)
+                groupManager = EosTargetManager(console: self,
+                                                targets: groups,
+                                                progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 groupManager?.synchronize()
             case .macro:
                 let managerProgress = Progress(totalUnitCount: 1)
-                macroManager = EosTargetManager(console: self, targets: macros, progress: managerProgress)
+                macroManager = EosTargetManager(console: self,
+                                                targets: macros,
+                                                progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 macroManager?.synchronize()
             case .sub:
                 let managerProgress = Progress(totalUnitCount: 1)
-                subManager = EosTargetManager(console: self, targets: subs, progress: managerProgress)
+                subManager = EosTargetManager(console: self,
+                                              targets: subs,
+                                              progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 subManager?.synchronize()
             case .preset:
                 let managerProgress = Progress(totalUnitCount: 1)
-                presetManager = EosTargetManager(console: self, targets: presets, progress: managerProgress)
+                presetManager = EosTargetManager(console: self,
+                                                 targets: presets,
+                                                 progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 presetManager?.synchronize()
             case .intensityPalette:
                 let managerProgress = Progress(totalUnitCount: 1)
-                intensityPaletteManager = EosTargetManager(console: self, targets: intensityPalettes, progress: managerProgress)
+                intensityPaletteManager = EosTargetManager(console: self,
+                                                           targets: intensityPalettes,
+                                                           progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 intensityPaletteManager?.synchronize()
             case .focusPalette:
                 let managerProgress = Progress(totalUnitCount: 1)
-                focusPaletteManager = EosTargetManager(console: self, targets: focusPalettes, progress: managerProgress)
+                focusPaletteManager = EosTargetManager(console: self,
+                                                       targets: focusPalettes,
+                                                       progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 focusPaletteManager?.synchronize()
             case .colorPalette:
                 let managerProgress = Progress(totalUnitCount: 1)
-                colorPaletteManager = EosTargetManager(console: self, targets: colorPalettes, progress: managerProgress)
+                colorPaletteManager = EosTargetManager(console: self,
+                                                       targets: colorPalettes,
+                                                       progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 colorPaletteManager?.synchronize()
             case .beamPalette:
                 let managerProgress = Progress(totalUnitCount: 1)
-                beamPaletteManager = EosTargetManager(console: self, targets: beamPalettes, progress: managerProgress)
+                beamPaletteManager = EosTargetManager(console: self,
+                                                      targets: beamPalettes,
+                                                      progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 beamPaletteManager?.synchronize()
             case .curve:
                 let managerProgress = Progress(totalUnitCount: 1)
-                curveManager = EosTargetManager(console: self, targets: curves, progress: managerProgress)
+                curveManager = EosTargetManager(console: self,
+                                                targets: curves,
+                                                progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 curveManager?.synchronize()
             case .effect:
                 let managerProgress = Progress(totalUnitCount: 1)
-                effectManager = EosTargetManager(console: self, targets: effects, progress: managerProgress)
+                effectManager = EosTargetManager(console: self,
+                                                 targets: effects,
+                                                 progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 effectManager?.synchronize()
             case .snapshot:
                 let managerProgress = Progress(totalUnitCount: 1)
-                snapshotManager = EosTargetManager(console: self, targets: snapshots, progress: managerProgress)
+                snapshotManager = EosTargetManager(console: self,
+                                                   targets: snapshots,
+                                                   progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 snapshotManager?.synchronize()
             case .pixelMap:
                 let managerProgress = Progress(totalUnitCount: 1)
-                pixelMapManager = EosTargetManager(console: self, targets: pixelMaps, progress: managerProgress)
+                pixelMapManager = EosTargetManager(console: self,
+                                                   targets: pixelMaps,
+                                                   progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 pixelMapManager?.synchronize()
             case .magicSheet:
                 let managerProgress = Progress(totalUnitCount: 1)
-                magicSheetManager = EosTargetManager(console: self, targets: magicSheets, progress: managerProgress)
+                magicSheetManager = EosTargetManager(console: self,
+                                                     targets: magicSheets,
+                                                     progress: managerProgress)
                 progress.addChild(managerProgress, withPendingUnitCount: 1)
                 magicSheetManager?.synchronize()
             case .setup:
@@ -396,16 +462,24 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     }
     
     // MARK:- Send OSC Message
-    internal func sendMessage(with addressPattern: String, arguments: [Any], completionHandler: EosKitCompletionHandler? = nil) {
+    internal func sendMessage(with addressPattern: String, arguments: [OSCArgumentProtocol], completionHandler: EosKitCompletionHandler? = nil) {
         if let handler = completionHandler {
             self.completionHandlers[addressPattern] = handler
         }
-        let message = OSCMessage(with: "\(eosRequestPrefix)\(addressPattern)", arguments: arguments)
-        client.send(packet: message)
+        do {
+            let message = try OSCMessage(with: "\(eosRequestPrefix)\(addressPattern)", arguments: arguments)
+            try client.send(message)
+        } catch {
+            print(error.localizedDescription)
+        }
     }
     
     internal func send(_ packet: OSCPacket) {
-        client.send(packet: packet)
+        do {
+            try client.send(packet)
+        } catch {
+            print(error.localizedDescription)
+        }
     }
     
     // TODO: Not sure this is needed anymore...
@@ -417,19 +491,30 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     
 }
 
-// MARK:- OSCPacketDestination
-extension EosConsole: OSCPacketDestination {
+// MARK:- OSCTcpClientDelegate
+extension EosConsole: OSCTcpClientDelegate {
     
-    public func take(bundle: OSCBundle) {
-        // An eos family console doesn't send any OSC Bundles.
+    public func client(_ client: OSCTcpClient, didConnectTo host: String, port: UInt16) {
+        state = .connected
+        heartbeat(true)
+    }
+    
+    public func client(_ client: OSCTcpClient, didDisconnectWith error: Error?) {
+        state = .disconnected
+        heartbeat(false)
+        systemFiltersSent = false
+        filters.removeAll()
+    }
+    
+    public func client(_ client: OSCTcpClient, didSendPacket packet: OSCPacket) {
         return
     }
     
-    public func take(message: OSCMessage) {
-//        print(OSCAnnotation.annotation(for: message, with: .spaces, andType: true))
+    public func client(_ client: OSCTcpClient, didReceivePacket packet: OSCPacket) {
+        guard var message = packet as? OSCMessage else { return }
         if message.isFromEos {
             let relativeAddress = message.addressWithoutEosOut()
-            message.readdress(to: relativeAddress)
+            try? message.readdress(to: relativeAddress)
             if relativeAddress != eosPingRequest {
                 restartHeartbeatTimer()
             }
@@ -455,38 +540,23 @@ extension EosConsole: OSCPacketDestination {
             case _ where isGetOrNotify(message: message, for: .setup): setup.value = EosSetup(message: message) ?? EosSetup.default
             default:
                 guard let completionHandler = completionHandlers[relativeAddress] else {
-                    delegate?.console(self, didReceiveUndefinedMessage: OSCAnnotation.annotation(for: message, with: .spaces, andType: true))
+                    delegate?.console(self, didReceiveUndefinedMessage: OSCAnnotation.annotation(for: message))
                     return
                 }
                 completionHandlers.removeValue(forKey: relativeAddress)
                 completionHandler(message)
             }
         } else {
-            delegate?.console(self, didReceiveUndefinedMessage: OSCAnnotation.annotation(for: message, with: .spaces, andType: true))
+            delegate?.console(self, didReceiveUndefinedMessage: OSCAnnotation.annotation(for: message))
         }
     }
     
     private func isGetOrNotify(message: OSCMessage, for target: EosRecordTarget) -> Bool {
-        return message.addressPattern.hasPrefix("/get/\(target.part)") || message.addressPattern.hasPrefix("/notify/\(target.part)")
+        return message.addressPattern.fullPath.hasPrefix("/get/\(target.part)") || message.addressPattern.fullPath.hasPrefix("/notify/\(target.part)")
     }
     
-}
-
-
-
-// MARK:- OSCClientDelegate
-extension EosConsole: OSCClientDelegate {
-    
-    public func clientDidConnect(client: OSCClient) {
-        state = .connected
-        heartbeat(true)
-    }
-    
-    public func clientDidDisconnect(client: OSCClient) {
-        state = .disconnected
-        heartbeat(false)
-        systemFiltersSent = false
-        filters.removeAll()
+    public func client(_ client: OSCTcpClient, didReadData data: Data, with error: Error) {
+        return
     }
     
 }

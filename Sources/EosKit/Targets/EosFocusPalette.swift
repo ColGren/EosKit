@@ -40,21 +40,21 @@ public struct EosFocusPalette: EosTarget, Hashable {
     
     internal init?(messages: [OSCMessage]) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.contains("channels") == false &&
-                                                         $0.addressPattern.contains("byType") == false }),
-              let channelsMessage = messages.first(where: { $0.addressPattern.contains("channels") == true }),
-              let byTypeMessage = messages.first(where: { $0.addressPattern.contains("byType") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.contains("channels") == false &&
+                                                    $0.addressPattern.fullPath.contains("byType") == false }),
+              let channelsMessage = messages.first(where: { $0.addressPattern.fullPath.contains("channels") == true }),
+              let byTypeMessage = messages.first(where: { $0.addressPattern.fullPath.contains("byType") == true }),
               let number = indexMessage.number(), let double = Double(number),
               let uuid = indexMessage.uuid(),
               let label = indexMessage.arguments[2] as? String,
-              let absolute = indexMessage.arguments[3] as? OSCArgument,
-              let locked = indexMessage.arguments[4] as? OSCArgument
+              let absolute = indexMessage.arguments[3] as? Bool,
+              let locked = indexMessage.arguments[4] as? Bool
         else { return nil }
         self.number = double
         self.uuid = uuid
         self.label = label
-        self.absolute = absolute == .oscTrue
-        self.locked = locked == .oscTrue
+        self.absolute = absolute
+        self.locked = locked
         
         var channelsList: [Double] = []
         for argument in channelsMessage.arguments[2...] where channelsMessage.arguments.count >= 3 {

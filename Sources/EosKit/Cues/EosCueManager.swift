@@ -36,11 +36,11 @@ internal final class EosCueManager: EosTargetManagerProtocol {
         
         /// This is a really rough implementation that only accounts for the address patterns defined in the `eosCueNoPartsFilters` array.
         internal static func type(from message: OSCMessage) -> MessageType? {
-            if message.addressPattern.hasPrefix("/notify") {
+            if message.addressPattern.fullPath.hasPrefix("/notify") {
                 return nil
-            } else if message.addressPattern.contains("cuelist") {
+            } else if message.addressPattern.fullPath.contains("cuelist") {
                 return MessageType.list
-            } else if message.addressPattern.contains("noparts") || message.addressParts.count == 4 || message.addressParts[4] == "0" {
+            } else if message.addressPattern.fullPath.contains("noparts") || message.addressPattern.parts.count == 4 || message.addressPattern.parts[4] == "0" {
                 return MessageType.cue
             } else {
                 return MessageType.part
@@ -50,7 +50,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     
     private let console: EosConsole
     private let targets: CurrentValueSubject<[Double: [EosCue]], Never>
-    internal let addressSpace = OSCAddressSpace()
+    internal var addressSpace = OSCAddressSpace()
     
     /// A dictionary of `OSCMessage`'s to build an EosCue with its component `EosCuePart`'s.
     ///
@@ -63,19 +63,6 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     init(console: EosConsole, targets: CurrentValueSubject<[Double: [EosCue]], Never>, progress: Progress? = nil) {
         self.console = console
         self.targets = targets
-        registerAddressSpace()
-    }
-    
-    private func registerAddressSpace() {
-        EosRecordTarget.cue.filters.forEach {
-            if $0.hasSuffix("count") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: count(message:)))
-            } else if $0.hasPrefix("/notify") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: notify(message:)))
-            } else {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: index(message:)))
-            }
-        }
     }
     
     internal func count(message: OSCMessage) {
@@ -117,7 +104,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
                     targets.value[cueListNumber]?.remove(at: firstIndex)
                 }
             } else {
-                if message.addressParts.count == 8, let partCount = message.arguments[26] as? NSNumber, let uPartCount = UInt32(exactly: partCount) {
+                if message.addressPattern.parts.count == 8, let partCount = message.arguments[26] as? NSNumber, let uPartCount = UInt32(exactly: partCount) {
                     messages[key] = (cue: [message], count: uPartCount, parts: [])
                 } else if let _ = messages[key] {
                     messages[key]?.cue.append(message)
@@ -147,7 +134,7 @@ internal final class EosCueManager: EosTargetManagerProtocol {
         case .part:
             let key = "\(number)/\(cueNumber)"
             if let index = messages[key]?.parts.firstIndex(where: { $0.contains(where: { partMessage in
-                message.addressParts[4] == partMessage.addressParts[4]
+                message.addressPattern.parts[4] == partMessage.addressPattern.parts[4]
             })}) {
                 messages[key]?.parts[index].append(message)
             } else {
@@ -194,6 +181,29 @@ internal final class EosCueManager: EosTargetManagerProtocol {
     
     // MARK:- Sync
     func synchronize() {
+        if addressSpace.methods.isEmpty {
+            var methods: Set<OSCMethod> = []
+            EosRecordTarget.cue.filters.forEach {
+                let address = try! OSCAddress($0)
+                if $0.hasSuffix("count") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.count(message: message)
+                    }))
+                } else if $0.hasPrefix("/notify") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.notify(message: message)
+                    }))
+                } else {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.index(message: message)
+                    }))
+                }
+            }
+            addressSpace.methods = methods
+        }
         console.send(OSCMessage.getCount(of: EosRecordTarget.cueList))
     }
     
@@ -202,23 +212,23 @@ internal final class EosCueManager: EosTargetManagerProtocol {
 extension OSCMessage {
     
     static fileprivate func getCountOfCuesNoPartsIn(list: String) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/cue/\(list)/noparts/count")
+        return try! OSCMessage(with: "/eos/get/cue/\(list)/noparts/count")
     }
 
     static fileprivate func getCueNoPartsIn(list: String, atIndex index: Int32) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/cue/\(list)/noparts/index/\(index)")
+        return try! OSCMessage(with: "/eos/get/cue/\(list)/noparts/index/\(index)")
     }
     
     static fileprivate func getCueIn(list: Double, withNumber number: Double) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/cue/\(list)/\(number)")
+        return try! OSCMessage(with: "/eos/get/cue/\(list)/\(number)")
     }
 
     static fileprivate func getCountOfPartsFor(cue: String, inList list: String) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/cue/\(list)/\(cue)/count")
+        return try! OSCMessage(with: "/eos/get/cue/\(list)/\(cue)/count")
     }
 
     static fileprivate func getPartFor(cue: String, inList list: String, atIndex index: Int32) -> OSCMessage {
-        return OSCMessage(with: "/eos/get/cue/\(list)/\(cue)/index/\(index)")
+        return try! OSCMessage(with: "/eos/get/cue/\(list)/\(cue)/index/\(index)")
     }
 
 }

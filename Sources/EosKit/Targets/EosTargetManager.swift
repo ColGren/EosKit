@@ -31,7 +31,7 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
     
     private let targets: CurrentValueSubject<[T], Never>
     private let console: EosConsole
-    internal let addressSpace = OSCAddressSpace()
+    internal var addressSpace = OSCAddressSpace()
     
     private var managerProgress: Progress?
     private var progress: Progress?
@@ -41,19 +41,6 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
         self.console = console
         self.targets = targets
         self.managerProgress = progress
-        registerAddressSpace()
-    }
-    
-    private func registerAddressSpace() {
-        T.target.filters.forEach {
-            if $0.hasSuffix("count") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: count(message:)))
-            } else if $0.hasPrefix("/notify") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: notify(message:)))
-            } else {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: index(message:)))
-            }
-        }
     }
     
     private func count(message: OSCMessage) {
@@ -127,6 +114,29 @@ internal class EosTargetManager<T: EosTarget>: EosTargetManagerProtocol {
     }
     
     func synchronize() {
+        if addressSpace.methods.isEmpty {
+            var methods: Set<OSCMethod> = []
+            T.target.filters.forEach {
+                let address = try! OSCAddress($0)
+                if $0.hasSuffix("count") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.count(message: message)
+                    }))
+                } else if $0.hasPrefix("/notify") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.notify(message: message)
+                    }))
+                } else {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.index(message: message)
+                    }))
+                }
+            }
+            addressSpace.methods = methods
+        }
         console.send(OSCMessage.getCount(of: T.target))
     }
     

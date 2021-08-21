@@ -53,35 +53,35 @@ public struct EosCueList: EosTarget, Hashable {
     
     internal init?(messages: [OSCMessage], cues: [EosCue]? = nil) {
         guard messages.count == Self.stepCount,
-              let indexMessage = messages.first(where: { $0.addressPattern.contains("links") == false }),
-              let linksMessage = messages.first(where: { $0.addressPattern.contains("links") == true }),
+              let indexMessage = messages.first(where: { $0.addressPattern.fullPath.contains("links") == false }),
+              let linksMessage = messages.first(where: { $0.addressPattern.fullPath.contains("links") == true }),
               let number = indexMessage.number(), let double = Double(number),
               let uuid = indexMessage.uuid(),
               let label = indexMessage.arguments[2] as? String,
               let playbackMode = indexMessage.arguments[3] as? String,
               let faderMode = indexMessage.arguments[4] as? String,
-              let independent = indexMessage.arguments[5] as? OSCArgument,
-              let htp = indexMessage.arguments[6] as? OSCArgument,
-              let assert = indexMessage.arguments[7] as? OSCArgument,
-              let block = indexMessage.arguments[8] as? OSCArgument,
-              let background = indexMessage.arguments[9] as? OSCArgument,
-              let soloMode = indexMessage.arguments[10] as? OSCArgument,
+              let independent = indexMessage.arguments[5] as? Bool,
+              let htp = indexMessage.arguments[6] as? Bool,
+              let assert = indexMessage.arguments[7] as? Bool,
+              let block = indexMessage.arguments[8] as? Bool,
+              let background = indexMessage.arguments[9] as? Bool,
+              let soloMode = indexMessage.arguments[10] as? Bool,
               let timecodeList = indexMessage.arguments[11] as? NSNumber,
-              let oosSync = indexMessage.arguments[12] as? OSCArgument
+              let oosSync = indexMessage.arguments[12] as? Bool
         else { return nil }
         self.number = double
         self.uuid = uuid
         self.label = label
         self.playbackMode = playbackMode
         self.faderMode = faderMode
-        self.independent = independent == .oscTrue
-        self.htp = htp == .oscTrue
-        self.assert = assert == .oscTrue
-        self.block = block == .oscTrue
-        self.background = background == .oscTrue
-        self.soloMode = soloMode == .oscTrue
+        self.independent = independent
+        self.htp = htp
+        self.assert = assert
+        self.block = block
+        self.background = background
+        self.soloMode = soloMode
         self.timecodeList = UInt32(exactly: timecodeList)
-        self.oosSync = oosSync == .oscTrue
+        self.oosSync = oosSync
         
         var linkedCueLists: [Double] = []
         for argument in linksMessage.arguments[2...] {

@@ -31,7 +31,7 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
     
     private let console: EosConsole
     private let targets: CurrentValueSubject<[EosChannel], Never>
-    internal let addressSpace = OSCAddressSpace()
+    internal var addressSpace = OSCAddressSpace()
 
     private var managerProgress: Progress?
     private var progress: Progress?
@@ -46,19 +46,6 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
         self.console = console
         self.targets = targets
         self.managerProgress = progress
-        registerAddressSpace()
-    }
-    
-    private func registerAddressSpace() {
-        EosRecordTarget.patch.filters.forEach {
-            if $0.hasSuffix("count") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: count(message:)))
-            } else if $0.hasPrefix("/notify") {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: notify(message:)))
-            } else {
-                addressSpace.methods.insert(OSCAddressMethod(with: $0, andCompletionHandler: index(message:)))
-            }
-        }
     }
     
     internal func count(message: OSCMessage) -> () {
@@ -84,7 +71,7 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
             }
         } else {
             // This gets called once per channel when receiving the first part.
-            guard message.addressPattern.hasSuffix("notes") == false,
+            guard message.addressPattern.fullPath.hasSuffix("notes") == false,
                   let partCount = message.arguments[19] as? NSNumber,
                   let uPartCount = UInt32(exactly: partCount) else { return }
             messages[number] = (count: uPartCount, parts: [[message]])
@@ -113,6 +100,29 @@ internal final class EosPatchManager: EosTargetManagerProtocol {
     }
     
     func synchronize() {
+        if addressSpace.methods.isEmpty {
+            var methods: Set<OSCMethod> = []
+            EosRecordTarget.patch.filters.forEach {
+                let address = try! OSCAddress($0)
+                if $0.hasSuffix("count") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.count(message: message)
+                    }))
+                } else if $0.hasPrefix("/notify") {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.notify(message: message)
+                    }))
+                } else {
+                    methods.insert(OSCMethod(with: address,
+                                             invokedAction: { message, _ in
+                        self.index(message: message)
+                    }))
+                }
+            }
+            addressSpace.methods = methods
+        }
         messages.removeAll()
         targets.value.removeAll()
         console.send(OSCMessage.getCount(of: .patch))

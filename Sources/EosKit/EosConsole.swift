@@ -90,9 +90,9 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     
     public let name: String
     public let type: EosConsoleType
-    private(set) var interface: String { get { client.interface ?? "" } set { client.interface = newValue } }
-    private(set) var host: String { get { client.host } set { client.host = newValue } }
-    private(set) var port: UInt16 { get { client.port } set { client.port = newValue } }
+    private(set) public var interface: String { get { client.interface ?? "" } set { client.interface = newValue } }
+    private(set) public var host: String { get { client.host } set { client.host = newValue } }
+    private(set) public var port: UInt16 { get { client.port } set { client.port = newValue } }
     
     /// The current state of the TCP connection.
     ///

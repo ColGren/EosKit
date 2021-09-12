@@ -470,7 +470,8 @@ public final class EosConsole: NSObject, Identifiable, ObservableObject {
     }
     
     // MARK:- Send OSC Message
-    internal func sendMessage(with addressPattern: String, arguments: [OSCArgumentProtocol], completionHandler: EosKitCompletionHandler? = nil) {
+    // Make sendMessage a public function
+    public func sendMessage(with addressPattern: String, arguments: [OSCArgumentProtocol], completionHandler: EosKitCompletionHandler? = nil) {
         if let handler = completionHandler {
             self.completionHandlers[addressPattern] = handler
         }
